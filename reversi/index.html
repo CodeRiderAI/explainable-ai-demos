@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WHY Reversi Demo — Explainable Reversi</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <header>
+    <h1>WHY Reversi Demo — 学習なし・理由を表示するオセロ</h1>
+  </header>
+  <div class="wrap">
+    <div class="boardwrap">
+      <div id="board" class="board"></div>
+      <div class="legend">
+        <span class="dot blackdot"></span> 黒（あなた）
+        <span class="dot whitedot"></span> 白（AI）
+        <span class="dot hintdot"></span> 候補
+      </div>
+      <div class="row">
+        <button id="toggleFirstBtn" class="btn">先手: 黒</button>
+        <button id="resetBtn" class="btn">リセット</button>
+        <div class="sub">WHYログは右側に表示されます。
+          <button id="saveBtn" class="btn">ログを保存</button>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="row">
+        <div class="title">候補と理由（WHY）</div>
+        <div class="sub" id="turnInfo">ターン: 黒（あなた）</div>
+      </div>
+      <div id="candList"></div>
+      <div class="sub" style="margin-top:8px">
+        評価 = 角・辺・可動性・危険度を統合した単位なしスコア
+      </div>
+    </div>
+  </div>
+  <script src="js/reversi-engine.js"></script>
+  <script src="js/ai-logic.js"></script>
+  <script src="js/ui-renderer.js"></script>
+</body>
+</html>

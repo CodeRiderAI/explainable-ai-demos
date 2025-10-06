@@ -1,0 +1,573 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WHY Reversi Demo (Standalone)</title>
+  <style>
+  /* style.css 全文 */
+  :root {--bg:#0f1220;--panel:#151a2c;--fg:#e7eaf6;--drop:#ef4444;--hold:#f59e0b;--revive:#22c55e;}
+  body{margin:0;background:var(--bg);color:var(--fg);font-family:sans-serif;}
+  header{padding:14px 16px;border-bottom:1px solid #1f2440;background:#0d1120;}
+  .wrap{display:flex;gap:16px;padding:16px;}
+  .board{width:560px;height:560px;background:#0b3d1d;display:grid;
+    grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(8,1fr);
+    border:8px solid #0a2f16;border-radius:10px;}
+  .sq{border:1px solid rgba(255,255,255,.08);position:relative;cursor:pointer;}
+  .disc{position:absolute;inset:10%;border-radius:50%;box-shadow:inset 0 2px 6px rgba(0,0,0,.35);}
+  .black{background:radial-gradient(circle at 30% 30%,#444,#111);}
+  .white{background:radial-gradient(circle at 30% 30%,#fff,#ccc);}
+  .hint-drop{position:absolute;inset:35%;border-radius:50%;background:rgba(239,68,68,.35);}
+  .hint-hold{position:absolute;inset:35%;border-radius:50%;background:rgba(245,158,11,.35);}
+  .hint-revive{position:absolute;inset:35%;border-radius:50%;background:rgba(34,197,94,.35);}
+  .panel{width:520px;background:var(--panel);border-radius:12px;padding:12px;}
+  .btn{padding:6px 12px;margin:4px;background:#1f2440;border:none;border-radius:6px;color:var(--fg);cursor:pointer;}
+  .btn:hover{background:#242c52;}
+  .dot{width:12px;height:12px;border-radius:50%;display:inline-block;}
+  .blackdot{background:#222;}
+  .whitedot{background:#eee;border:1px solid #999;}
+  .hintdot{background:rgba(255,255,255,.25);}
+  .cand{border-top:1px solid #232a4a;padding:8px 0;}
+  .why{font-size:14px;background:#0f1427;padding:8px;border-radius:8px;}
+  </style>
+</head>
+<body>
+  <header><h1>WHY Reversi Demo (Standalone)</h1></header>
+  <div class="wrap">
+    <div class="boardwrap">
+      <div id="board" class="board"></div>
+      <div class="legend">
+        <span class="dot blackdot"></span> 黒（あなた）
+        <span class="dot whitedot"></span> 白（AI）
+        <span class="dot hintdot"></span> 候補
+      </div>
+      <div class="row">
+        <button id="toggleFirstBtn" class="btn">先手: 黒</button>
+        <button id="resetBtn" class="btn">リセット</button>
+        <div class="sub">WHYログは右側に表示されます。
+          <button id="saveBtn" class="btn">ログを保存</button>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="row">
+        <div class="title">候補と理由（WHY）</div>
+        <div class="sub" id="turnInfo">ターン: 黒（あなた）</div>
+      </div>
+      <div id="candList"></div>
+      <div class="sub" style="margin-top:8px">評価 = 角・辺・可動性・危険度を統合した単位なしスコア</div>
+    </div>
+  </div>
+<script>
+// ---- Search settings (Balanced preset) ----
+let SEARCH_ENABLED   = true;
+let SEARCH_MAX_DEPTH = 3;        // base depth
+let SEARCH_TIME_MS   = 250;      // per-move time budget (ms)
+
+// ---- Evaluation: single-move (unitless) ----
+function evaluateMove(side, b, move){
+  const opp = -side;
+  const nb = applyMove(b, move, side);
+  const myCorners = cornerCount(nb, side);
+  const stEdges   = stableEdges(nb, side);
+  const myMob     = mobility(nb, side);
+  const oppMob    = mobility(nb, opp);
+  const xRisk     = xSquareRisk(move.r, move.c, b);
+
+  // base score (tuned for transparency)
+  let score = 2.2*myCorners + 1.2*stEdges + 0.4*myMob - 0.5*oppMob - 1.6*xRisk;
+
+  // absolute priority for capturing a corner
+  if (isCorner(move.r, move.c)) score += 6.0;
+
+  return { score, features:{ myCorners, stEdges, myMob, oppMob, xRisk } };
+}
+
+function boardScore(side, b){
+  const myC  = cornerCount(b, side);
+  const stE  = stableEdges(b, side);
+  const myM  = mobility(b, side);
+  const oppM = mobility(b, -side);
+  return 2.2*myC + 1.2*stE + 0.4*myM - 0.5*oppM;
+}
+
+// ---- WHY in natural language (UI panel text) ----
+function formatWhyNatural(e){
+  if(!e || !e.why_kind) return "特別な理由はありません。";
+  const r = e.reason || "";
+  switch(e.why_kind){
+    case "WHY_DROP":
+      if(r.includes("corner")) return "この手を打つと角を相手に取られるリスクが高いため、避けました。";
+      if(r.includes("inferior_score")) return "評価が他の候補より低いため、捨てました。";
+      return "現在の状況では不利と判断して捨てました。";
+    case "WHY_HOLD":
+      return "評価が拮抗しており、どちらとも言えないため保留しました。";
+    case "WHY_REVIVE":
+      if(r.includes("corner")) return "角を確保できる好機と判断して採用しました。";
+      if(r.includes("mobility")) return "この手で相手の可動性が下がるため、有利になる見込みで採用しました。";
+      if(r.includes("best_score")) return "最善手のため採用しました。";
+      return "他の手よりも有望と判断して採用しました。";
+    default:
+      return "特別な理由はありません。";
+  }
+}
+
+// ---- Move ordering (corners first, risky last) ----
+function orderMoves(side, b, moves){
+  return [...moves].sort((a,bm)=>{
+    const ac = isCorner(a.r,a.c)?1:0, bc = isCorner(bm.r,bm.c)?1:0;
+    if (ac!==bc) return bc-ac;
+    const anx = (isXSquare(a.r,a.c)||isCornerAdjacent(a.r,a.c))?1:0;
+    const bnx = (isXSquare(bm.r,bm.c)||isCornerAdjacent(bm.r,bm.c))?1:0;
+    if (anx!==bnx) return anx-bnx;
+    // light single-move eval
+    return evaluateMove(side,b,a).score - evaluateMove(side,b,bm).score;
+  }).reverse();
+}
+
+// ---- WHY classification for candidates (DROP/HOLD/REVIVE) ----
+function classifyWHY(side, b, candidates){
+  if(!candidates.length) return {list:[], best:null};
+
+  // 1) base eval
+  let evals = candidates.map(m=>{
+    const ev = evaluateMove(side, b, m);
+    return {...m, ...ev};
+  });
+
+  // 2) best & HOLD band (relative)
+  const bestScore = Math.max(...evals.map(e=>e.score));
+  const DELTA = Math.max(1.0, Math.abs(bestScore)*0.25); // variable band
+
+  const withWhy = evals.map(e=>{
+    let why_kind="WHY_DROP", reason="", evidence={};
+    const d = bestScore - e.score;
+
+    if (d <= DELTA){ // HOLD band
+      // base = HOLD
+      why_kind="WHY_HOLD";
+      reason=`close_to_best (|Δ| ≤ ${DELTA})`;
+      evidence={delta:+d.toFixed(2), score:+e.score.toFixed(2), best:+bestScore.toFixed(2)};
+
+      // 1) corner always priority
+      if (isCorner(e.r, e.c)) {
+        why_kind="WHY_REVIVE"; reason="corner_priority";
+      } else {
+        // 1-ply risk & mobility check
+        const nb = applyMove(b, {r:e.r,c:e.c,flips:e.flips}, side);
+        const oppMobBefore = mobility(b, -side), oppMobAfter = mobility(nb, -side);
+        const oppMoves = legalMoves(nb, -side);
+
+        // A) immediate corner capture
+        const givesCorner = oppMoves.some(mv => isCorner(mv.r,mv.c));
+
+        // B) 2-ply corner trap (opp X/adjacent -> our reply -> opp corner)
+        const givesCornerSoon = !givesCorner && oppMoves.some(mv => {
+          if (!(isXSquare(mv.r,mv.c) || isCornerAdjacent(mv.r,mv.c))) return false;
+          const nb2 = applyMove(nb, mv, -side);
+          const our2 = legalMoves(nb2, side);
+          return our2.some(m2 => {
+            const nb3 = applyMove(nb2, m2, side);
+            const opp3 = legalMoves(nb3, -side);
+            return opp3.some(z => isCorner(z.r,z.c));
+          });
+        });
+
+        if (givesCorner || givesCornerSoon) {
+          why_kind="WHY_DROP";
+          reason = givesCorner ? "gives opponent corner (2-ply risk)"
+                               : "leads to corner in 2 plies";
+          evidence = {...evidence, risk:"corner_capture"};
+        } else {
+          // C) exact best (Δ=0) => REVIVE
+          if (Math.abs(d) < 1e-9) {
+            why_kind="WHY_REVIVE"; reason="best_score";
+          }
+          // D) mobility improved => REVIVE
+          else if (oppMobAfter < oppMobBefore) {
+            why_kind="WHY_REVIVE";
+            reason="1-ply reduces opp mobility";
+            evidence={...evidence, oppMobBefore, oppMobAfter};
+          }
+          // E) if corner already owned by opponent, adjacent is trap => DROP
+          const cornerIsOpponent = cornerCoords.some(([cr,cc]) => b[cr][cc] === -side);
+          if (cornerIsOpponent && isCornerAdjacent(e.r, e.c)) {
+            why_kind="WHY_DROP";
+            reason="corner already controlled by opponent (trap risk)";
+            evidence={...evidence, risk:"corner_owned"};
+          }
+        }
+      }
+    } else {
+      // drop reasons
+      if(e.features.xRisk>0){ why_kind="WHY_DROP"; reason="x_square_risk"; evidence={xRisk:e.features.xRisk}; }
+      else { why_kind="WHY_DROP"; reason="inferior_score"; evidence={delta:+d.toFixed(2)}; }
+    }
+    return {...e, why_kind, reason, evidence};
+  });
+
+  // 3) pick best for display order
+  const best = withWhy.reduce((a,b)=> a.score>=b.score?a:b);
+  return { list:withWhy.sort((a,b)=> b.score - a.score), best };
+}
+
+// ---- Search: iterative deepening Negamax + alpha-beta + time limit ----
+function searchBestMove(side, b, moves, maxDepth=SEARCH_MAX_DEPTH, timeMs=SEARCH_TIME_MS){
+  const deadline = performance.now() + timeMs;
+  let last = {score:-Infinity, pv:[]}, nodes=0;
+
+  function negamax(board, s, depth, alpha, beta){
+    nodes++;
+    if (performance.now() > deadline) return {score: boardScore(side, board), pv:[]};
+    if (depth===0){
+      return {score: boardScore(side, board), pv:[]};
+    }
+    const legal = legalMoves(board, s);
+    if (legal.length===0){
+      const oppLegal = legalMoves(board, -s);
+      if (oppLegal.length===0){
+        const flat = board.flat();
+        const my = flat.filter(v=>v===side).length;
+        const opp= flat.filter(v=>v===-side).length;
+        return {score:(my-opp)*10, pv:[]};
+      }
+      return negamax(board, -s, depth, -beta, -alpha);
+    }
+    const ordered = orderMoves(s, board, legal);
+    let bestLocal = -Infinity, bestLine = [];
+    for(const mv of ordered){
+      const nb = applyMove(board, mv, s);
+      const nxt = negamax(nb, -s, depth-1, -beta, -alpha);
+      const sc = -nxt.score;
+      if (sc > bestLocal){ bestLocal = sc; bestLine = [mv, ...nxt.pv]; }
+      if (sc > alpha) alpha = sc;
+      if (alpha >= beta) break;
+      if (performance.now() > deadline) break;
+    }
+    return {score: bestLocal, pv: bestLine};
+  }
+
+  for(let d=1; d<=maxDepth; d++){
+    const res = negamax(b, side, d, -Infinity, Infinity);
+    if (performance.now() > deadline) break;
+    last = res;
+  }
+  let best;
+  if (last.pv.length){
+    const m = last.pv[0];
+    best = {r:m.r, c:m.c};
+  } else {
+    const base = orderMoves(side, b, moves)[0];
+    best = {r:base.r, c:base.c};
+    last.score = evaluateMove(side, b, base).score;
+  }
+  const bestFlips = flipsForMove(b, best.r, best.c, side);
+  return { best:{...best, flips:bestFlips}, score:+last.score.toFixed(2), nodes, depth:last.pv.length?maxDepth:1, pv:last.pv.map(m=>coord(m.r,m.c)) };
+}
+// Constants
+const EMPTY = 0, BLACK = 1, WHITE = -1;
+const SIZE = 8;
+const DIRS = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+const cornerCoords = [[0,0],[0,7],[7,0],[7,7]];
+
+// Globals (shared across modules)
+let board;                 // 8x8
+let player = BLACK;        // current side to move
+let firstPlayer = BLACK;   // first player (toggle)
+let whyLogs = [];          // JSONL logs (WHY and APPLY)
+let chosenWhy = [];        // [{side,move,why_kind,score}]
+
+// --- Basic helpers ---
+function inb(r,c){ return r>=0 && r<SIZE && c>=0 && c<SIZE; }
+function isCorner(r,c){ return (r===0&&c===0)||(r===0&&c===7)||(r===7&&c===0)||(r===7&&c===7); }
+function isXSquare(r,c){ return (r===1&&c===1)||(r===1&&c===6)||(r===6&&c===1)||(r===6&&c===6); }
+function isCornerAdjacent(r,c){ // orthogonal neighbors of corners
+  return (r===0 && (c===1||c===6)) || (r===7 && (c===1||c===6)) ||
+         (c===0 && (r===1||r===6)) || (c===7 && (r===1||r===6));
+}
+
+// --- Board I/O ---
+function initBoard(){
+  board = Array.from({length:SIZE},()=>Array(SIZE).fill(EMPTY));
+  const m = SIZE/2;
+  board[m-1][m-1]=WHITE; board[m][m]=WHITE;
+  board[m-1][m]=BLACK;  board[m][m-1]=BLACK;
+  player = firstPlayer;
+  whyLogs = [];
+  chosenWhy = [];
+  // UI will call draw(); and if WHITE first, aiTurn() will be fired by UI layer.
+}
+
+// --- Rules ---
+function flipsForMove(b, r, c, side){
+  if(b[r][c]!==EMPTY) return [];
+  const opp=-side; let flips=[];
+  for(const [dr,dc] of DIRS){
+    let rr=r+dr, cc=c+dc, buf=[];
+    while(inb(rr,cc) && b[rr][cc]===opp){ buf.push([rr,cc]); rr+=dr; cc+=dc; }
+    if(inb(rr,cc) && b[rr][cc]===side && buf.length) flips.push(...buf);
+  }
+  return flips;
+}
+
+function legalMoves(b, side){
+  const ms=[];
+  for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++){
+    const fl=flipsForMove(b,r,c,side);
+    if(fl.length) ms.push({r,c,flips:fl});
+  }
+  return ms;
+}
+
+function applyMove(b, move, side){
+  const nb = b.map(row=>row.slice());
+  nb[move.r][move.c]=side;
+  for(const [r,c] of move.flips) nb[r][c]=side;
+  return nb;
+}
+
+// --- Heuristic features (used by AI) ---
+function mobility(b, side){ return legalMoves(b, side).length; }
+
+function cornerCount(b, side){
+  return cornerCoords.reduce((s,[r,c])=> s + (b[r][c]===side ? 1:0), 0);
+}
+
+function stableEdges(b, side){
+  // very light proxy: count discs on edges that form contiguous streaks touching corners
+  let sc=0;
+  // top/bottom rows
+  for(const rr of [0,7]){
+    let left = b[rr][0]===side, right = b[rr][7]===side;
+    if(left){ let i=0; while(i<SIZE && b[rr][i]===side){ sc++; i++; } }
+    if(right){ let i=SIZE-1; while(i>=0 && b[rr][i]===side){ sc++; i--; } }
+  }
+  // left/right cols
+  for(const cc of [0,7]){
+    let top = b[0][cc]===side, bottom = b[7][cc]===side;
+    if(top){ let i=0; while(i<SIZE && b[i][cc]===side){ sc++; i++; } }
+    if(bottom){ let i=SIZE-1; while(i>=0 && b[i][cc]===side){ sc++; i--; } }
+  }
+  return sc;
+}
+
+function xSquareRisk(r,c,b){
+  if(!isXSquare(r,c)) return 0;
+  const mapping = { "1,1":[0,0], "1,6":[0,7], "6,1":[7,0], "6,6":[7,7] };
+  const key=`${r},${c}`; const [cr,cc]=mapping[key];
+  return (b[cr][cc]===EMPTY) ? 1 : 0;
+}
+
+// --- UX helpers ---
+function coord(r,c){ return String.fromCharCode(65+c) + (r+1); }
+function logWHY(obj){ const rec = { ts:new Date().toISOString(), ...obj }; whyLogs.push(rec); }
+// DOM refs
+const boardEl     = document.getElementById('board');
+const candListEl  = document.getElementById('candList');
+const turnInfoEl  = document.getElementById('turnInfo');
+const resetBtn    = document.getElementById('resetBtn');
+const saveBtn     = document.getElementById('saveBtn');
+const toggleFirstBtn = document.getElementById('toggleFirstBtn');
+
+// Bind handlers
+resetBtn.onclick = () => { initBoard(); draw(); if (player===WHITE) setTimeout(aiTurn, 200); };
+saveBtn.onclick  = () => downloadLogs();
+toggleFirstBtn.onclick = () => {
+  firstPlayer = (firstPlayer===BLACK)? WHITE : BLACK;
+  toggleFirstBtn.textContent = `先手: ${firstPlayer===BLACK?"黒":"白"}`;
+  initBoard(); draw();
+  if (player===WHITE) setTimeout(aiTurn, 200);
+};
+
+// Initial setup
+initBoard(); draw();
+if (player===WHITE) setTimeout(aiTurn, 200);
+
+// --- Rendering ---
+function draw(){
+  boardEl.innerHTML='';
+  // pre-compute current player's WHY for hints (when human turn)
+  let hintMap = new Map();
+  if (player===BLACK){
+    const moves = legalMoves(board, BLACK);
+    const { list } = classifyWHY(BLACK, board, moves);
+    for(const e of list){
+      const key = `${e.r},${e.c}`;
+      const kind = e.why_kind.toLowerCase().replace('why_',''); // drop/hold/revive
+      hintMap.set(key, kind);
+    }
+  }
+
+  for(let r=0;r<SIZE;r++){
+    for(let c=0;c<SIZE;c++){
+      const d = document.createElement('div');
+      d.className='sq';
+      if(board[r][c]===BLACK){ const disc=document.createElement('div'); disc.className='disc black'; d.appendChild(disc); }
+      if(board[r][c]===WHITE){ const disc=document.createElement('div'); disc.className='disc white'; d.appendChild(disc); }
+
+      if (player===BLACK){
+        const kind = hintMap.get(`${r},${c}`);
+        if (kind){
+          const h = document.createElement('div');
+          h.className = 'hint-' + kind; // red/yellow/green
+          d.appendChild(h);
+        }
+        d.onclick = () => onHumanMove(r,c);
+      } else {
+        d.onclick = ()=>{};
+      }
+      boardEl.appendChild(d);
+    }
+  }
+  turnInfoEl.textContent = `ターン: ${player===BLACK ? "黒（あなた）":"白（AI）"}`;
+  showCandidates();
+  // auto-pass for human if no legal move
+  if (player===BLACK){
+    const moves = legalMoves(board, BLACK);
+    if (moves.length===0){
+      logWHY({move:"-", side:"BLACK", why_kind:"PASS", reason:"no_legal_moves", evidence:{}});
+      player = WHITE;
+      setTimeout(aiTurn, 400);
+    }
+  }
+}
+
+function showCandidates(){
+  candListEl.innerHTML='';
+  const moves = legalMoves(board, player);
+  if (moves.length===0){
+    candListEl.innerHTML = `<div class="cand sub">合法手なし（パス）</div>`;
+    return;
+  }
+  const {list, best} = classifyWHY(player, board, moves);
+  list.sort((a,b)=> b.score - a.score);
+  for(const e of list){
+    const row = document.createElement('div'); row.className='cand';
+    const tags = document.createElement('div'); tags.className='tags';
+    const kind = document.createElement('span'); kind.className='tag ' + (e.why_kind==="WHY_DROP"?"drop":e.why_kind==="WHY_HOLD"?"hold":"revive");
+    kind.textContent = e.why_kind.replace("WHY_","");
+    const sc = document.createElement('span'); sc.className='tag'; sc.textContent = `score: ${e.score.toFixed(2)}`;
+    const mv = document.createElement('span'); mv.className='tag'; mv.textContent = `move: ${coord(e.r,e.c)}`;
+    tags.append(kind, sc, mv);
+    const why = document.createElement('div'); why.className='why';
+    why.textContent = formatWhyNatural(e);
+    row.appendChild(tags); row.appendChild(why);
+    candListEl.appendChild(row);
+  }
+}
+
+// --- Human move ---
+function onHumanMove(r,c){
+  if(player!==BLACK) return;
+  const ms = legalMoves(board, BLACK);
+  const mv = ms.find(m=>m.r===r&&m.c===c);
+  if(!mv) return;
+
+  // label chosen move WHY
+  const { list } = classifyWHY(BLACK, board, ms);
+  const lab = list.find(e=>e.r===r && e.c===c);
+  if(lab) chosenWhy.push({side:"BLACK", move:coord(r,c), why_kind:lab.why_kind, score:+lab.score.toFixed(2)});
+
+  board = applyMove(board, mv, BLACK);
+  logWHY({move:coord(r,c), side:"BLACK", why_kind:"APPLY", reason:"human_move", evidence:{}});
+  player = WHITE; draw();
+  setTimeout(aiTurn, 200);
+}
+
+// --- AI move ---
+function aiTurn(){
+  const moves = legalMoves(board, WHITE);
+  if(moves.length===0){
+    logWHY({move:"-", side:"WHITE", why_kind:"PASS", reason:"no_legal_moves", evidence:{}});
+    player = BLACK; draw(); maybeGameOver(); return;
+  }
+
+  // Display WHY for candidates (for panel)
+  const whyView = classifyWHY(WHITE, board, moves);
+
+  // Balanced: endgame +1 depth, otherwise base depth
+  const empties = board.flat().filter(v=>v===EMPTY).length;
+  const maxDepth = (empties <= 14 ? Math.min(SEARCH_MAX_DEPTH + 1, 4) : SEARCH_MAX_DEPTH);
+
+  let chosen, searchInfo;
+  if (SEARCH_ENABLED){
+    const res = searchBestMove(WHITE, board, moves, maxDepth, SEARCH_TIME_MS);
+    chosen = res.best;
+    searchInfo = {depth: maxDepth, nodes: res.nodes, score: res.score, pv: res.pv};
+  } else {
+    chosen = {r:whyView.best.r, c:whyView.best.c, flips:whyView.best.flips};
+    searchInfo = {depth:0, nodes:0, score:+whyView.best.score.toFixed(2), pv:[coord(chosen.r,chosen.c)]};
+  }
+
+  // Log WHY for non-DROP candidates (panel and file)
+  for(const e of whyView.list){
+    if(e.why_kind!=="WHY_DROP"){
+      logWHY({ move:coord(e.r,e.c), side:"WHITE", why_kind:e.why_kind, reason:e.reason, evidence:e.evidence, score:+e.score.toFixed(2) });
+    }
+  }
+
+  // Apply best
+  board = applyMove(board, chosen, WHITE);
+  chosenWhy.push({side:"WHITE", move:coord(chosen.r,chosen.c), why_kind:"APPLY", score:searchInfo.score});
+  logWHY({move:coord(chosen.r,chosen.c), side:"WHITE", why_kind:"APPLY",
+          reason: SEARCH_ENABLED ? "search_chosen" : "best_candidate",
+          evidence: searchInfo });
+
+  player = BLACK; draw(); maybeGameOver();
+}
+
+// --- End / Report ---
+function maybeGameOver(){
+  const noBlack = legalMoves(board, BLACK).length===0;
+  const noWhite = legalMoves(board, WHITE).length===0;
+  const full = board.flat().every(v=>v!==EMPTY);
+  if ((noBlack && noWhite) || full) showReport();
+}
+
+function showReport(){
+  const flat = board.flat();
+  const b = flat.filter(v=>v===BLACK).length;
+  const w = flat.filter(v=>v===WHITE).length;
+  const winner = (b===w) ? "DRAW" : (b>w ? "BLACK(あなた)" : "WHITE(AI)");
+
+  const stat = (side) => {
+    const rows = chosenWhy.filter(x=>x.side===side);
+    const c = (k)=> rows.filter(x=>x.why_kind===k).length;
+    const n = rows.length || 1;
+    return { n, DROP:c("WHY_DROP"), HOLD:c("WHY_HOLD"), REVIVE:c("WHY_REVIVE"),
+      rate_REVIVE:(c("WHY_REVIVE")/n).toFixed(2),
+      rate_HOLD:(c("WHY_HOLD")/n).toFixed(2)
+    };
+  };
+  const hs = stat("BLACK"), as = stat("WHITE");
+
+  const corrNote = `
+勝者: ${winner}
+[あなた] REVIVE率 ${hs.rate_REVIVE}, DROP ${hs.DROP}/${hs.n}
+[AI]     REVIVE率 ${as.rate_REVIVE}, DROP ${as.DROP}/${as.n}
+⇒ 一般に REVIVE率が高い側は勝ち筋、DROP多用は負け筋に寄りやすい傾向があります（本対局の概要）。
+`.trim();
+
+  const html = `
+    <div class="cand" style="margin-top:6px">
+      <div class="title">対局レポート（WHY × 勝敗）</div>
+      <div class="why">${JSON.stringify({winner, counts:{BLACK:b,WHITE:w}, chosenWhy_summary:{human:hs, ai:as}}, null, 2)}</div>
+      <div class="sub" style="margin-top:6px; white-space:pre-wrap">${corrNote}</div>
+    </div>
+  `;
+  candListEl.innerHTML = html;
+}
+
+// --- Download logs ---
+function downloadLogs(){
+  const jsonl = whyLogs.map(o=>JSON.stringify(o)).join("\n");
+  const blob = new Blob([jsonl], {type:"application/json"});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `reversi_why_${Date.now()}.jsonl`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+</script>
+</body>
+</html>
