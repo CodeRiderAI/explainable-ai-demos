@@ -16,16 +16,18 @@ AIが「なぜ捨てたのか」「なぜ保留したのか」「なぜ採用し
 
 ## ファイル構成
 ```
-why-reversi-demo/
-├── index.html
-├── style.css
-├── js/
-│   ├── reversi-engine.js
-│   ├── ai-logic.js
-│   └── ui-renderer.js
-├── standalone.html
+explainable-ai-demos/
+├── LICENSE
 ├── README.md
-└── LICENSE
+├── README_EN.md
+└── reversi/
+    ├── index.html
+    ├── style.css
+    ├── js/
+    │   ├── reversi-engine.js
+    │   ├── ai-logic.js
+    │   └── ui-renderer.js
+    └── standalone.html
 ```
 
 ---
