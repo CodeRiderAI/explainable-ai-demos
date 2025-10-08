@@ -17,12 +17,15 @@ h1{font-size:18px;margin:0;}
 .hint-drop{position:absolute;inset:35%;border-radius:50%;background:rgba(239,68,68,.35);}
 .hint-hold{position:absolute;inset:35%;border-radius:50%;background:rgba(245,158,11,.35);}
 .hint-revive{position:absolute;inset:35%;border-radius:50%;background:rgba(34,197,94,.35);}
-.panel{width:520px;background:var(--panel);border-radius:12px;padding:12px;}
+.panel{width:520px;height: 560px;overflow: auto;background:var(--panel);border-radius:12px;padding:12px;}
 .btn{padding:6px 12px;margin:4px;background:#1f2440;border:none;border-radius:6px;color:var(--fg);cursor:pointer;}
 .btn:hover{background:#242c52;}
 .dot{width:12px;height:12px;border-radius:50%;display:inline-block;}
 .blackdot{background:#222;}
 .whitedot{background:#eee;border:1px solid #999;}
 .hintdot{background:rgba(255,255,255,.25);}
+.tag.revive{display: block;color: var(--revive);border: 1px solid var(--revive);width: fit-content;padding: 0.1em 0.25em;}
+.tag.hold{display: block;color: var(--hold);border: 1px solid var(--hold);width: fit-content;padding: 0.1em 0.25em;}
+.tag.drop{display: block;color: var(--drop);border: 1px solid var(--drop);width: fit-content;padding: 0.1em 0.25em;}
 .cand{border-top:1px solid #232a4a;padding:8px 0;}
 .why{font-size:14px;background:#0f1427;padding:8px;border-radius:8px;}
