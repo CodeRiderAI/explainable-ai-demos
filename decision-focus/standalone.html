@@ -1,0 +1,551 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Decision Focus — 視野と焦点化のデモ</title>
+  <style>
+:root {
+  --bg: #0f1220;
+  --panel: #151a2c;
+  --fg: #e7eaf6;
+  --muted: #9aa3b2;
+  --accent: #6ee7b7;
+  --focus: #3b82f6;
+  --visible: #22c55e;
+  --hidden: #9aa3b2;
+}
+
+* {
+  box-sizing: border-box
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", Arial
+}
+
+header {
+  padding: 14px 16px;
+  border-bottom: 1px solid #1f2440;
+  background: #0d1120
+}
+
+header h1 {
+  margin: 0;
+  font-size: 18px;
+  letter-spacing: .02em
+}
+
+.wrap {
+  display: flex;
+  gap: 16px;
+  padding: 16px
+}
+
+.stage {
+  display: flex;
+  flex-direction: column;
+  gap: 12px
+}
+
+canvas {
+  background: #0b1328;
+  border: 1px solid #1f2440;
+  border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .35)
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center
+}
+
+.btn {
+  padding: 6px 12px;
+  border: 1px solid #2b3358;
+  border-radius: 8px;
+  background: #1f2440;
+  color: #cdd3ea;
+  cursor: pointer
+}
+
+.btn:hover {
+  background: #242c52
+}
+
+.ctl {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--muted)
+}
+
+.ctl input[type=range] {
+  accent-color: #93c5fd
+}
+
+.panel {
+  width: 420px;
+  background: var(--panel);
+  border-radius: 12px;
+  border: 1px solid #1f2440;
+  padding: 12px
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between
+}
+
+.title {
+  font-weight: 700
+}
+
+.sub {
+  color: var(--muted);
+  font-size: 12px
+}
+
+#focusList {
+  margin-top: 6px;
+  border-top: 1px solid #232a4a;
+  padding-top: 8px;
+  max-height: 300px;
+  overflow: auto
+}
+
+.item {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px dashed #232a4a;
+  padding: 6px 0
+}
+
+.item .k {
+  color: var(--muted);
+  font-size: 12px
+}
+
+.item .v {
+  font-variant-numeric: tabular-nums
+}
+
+.stats {
+  margin-top: 4px;
+  color: #dbe2ff
+}
+
+.note {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  border: 1px solid #2b3358;
+  background: #0f1427
+}
+
+.badge.vis {
+  color: var(--visible);
+  border-color: var(--visible)
+}
+
+.badge.hid {
+  color: var(--hidden);
+  border-color: #3a425e
+}
+</style>
+</head>
+<body>
+  <header>
+    <h1>Decision Focus — 視野と焦点化（Frame Problem 可視化デモ）</h1>
+  </header>
+
+  <main class="wrap">
+    <section class="stage">
+      <canvas id="stage" width="720" height="480"></canvas>
+
+      <div class="toolbar">
+        <button id="btnStart" class="btn">Start</button>
+        <button id="btnPause" class="btn">Pause</button>
+        <button id="btnReset" class="btn">Reset</button>
+
+        <label class="ctl">
+          視野半径
+          <input id="rngRadius" type="range" min="40" max="200" step="2" value="110" />
+          <span id="lblRadius">110</span>
+        </label>
+
+        <label class="ctl">
+          ターゲット数
+          <input id="rngCount" type="range" min="8" max="120" step="1" value="32" />
+          <span id="lblCount">32</span>
+        </label>
+
+        <label class="ctl">
+          速度係数
+          <input id="rngSpeed" type="range" min="0.5" max="3.0" step="0.1" value="1.0" />
+          <span id="lblSpeed">1.0</span>
+        </label>
+
+        <label class="ctl">
+          <input id="chkFollowMouse" type="checkbox" />
+          視点をマウス追従
+        </label>
+
+        <button id="btnDownload" class="btn">ログを保存</button>
+      </div>
+    </section>
+
+    <aside class="panel">
+      <div class="row">
+        <div class="title">現在の注目（FOCUSED）</div>
+        <div class="sub" id="lblStatus">stopped</div>
+      </div>
+
+      <div id="focusList"></div>
+
+      <div class="row" style="margin-top:8px">
+        <div class="title">統計</div>
+      </div>
+      <div id="stats" class="stats">
+        <div>可視ターゲット: <strong id="statVisible">0</strong></div>
+        <div>不可視ターゲット: <strong id="statHidden">0</strong></div>
+        <div>累積観測イベント: <strong id="statEvents">0</strong></div>
+      </div>
+
+      <div class="note">
+        <p>このデモは「全部を見ず、必要な範囲だけ見る」焦点化の概念を可視化します。円の内側が“注目”領域、外側は“無視”。条件が変われば、外側にあったものが内側に入り“注目”へ移ります。</p>
+      </div>
+    </aside>
+  </main>
+
+  <script>
+// =====================
+// focus-engine.js (no-module)
+// 物理/状態：ターゲットと視野（フォーカス円）
+// =====================
+
+const CFG = {
+  width: 720,
+  height: 480,
+  targetCount: 32,
+  baseSpeed: 1.0,
+  focusRadius: 110,
+  followMouse: false
+};
+
+class RNG {
+  static rand(min, max) { return Math.random() * (max - min) + min; }
+  static pick(arr) { return arr[(Math.random() * arr.length) | 0]; }
+}
+
+class Target {
+  constructor(id, w, h, spd) {
+    this.id = id;
+    this.x = RNG.rand(20, w - 20);
+    this.y = RNG.rand(20, h - 20);
+    const a = RNG.rand(0, Math.PI * 2);
+    const v = RNG.rand(0.5, 1.5) * spd;
+    this.vx = Math.cos(a) * v;
+    this.vy = Math.sin(a) * v;
+    this.r = 4;
+    this.visible = false;
+    this.lastSeenTs = 0;
+  }
+  step(w, h, spd) {
+    this.x += this.vx * spd;
+    this.y += this.vy * spd;
+    if (this.x < this.r || this.x > w - this.r) { this.vx *= -1; this.x = Math.max(this.r, Math.min(w - this.r, this.x)); }
+    if (this.y < this.r || this.y > h - this.r) { this.vy *= -1; this.y = Math.max(this.r, Math.min(h - this.r, this.y)); }
+  }
+}
+
+class FocusAgent {
+  constructor(w, h) {
+    this.x = w / 2;
+    this.y = h / 2;
+    this.r = CFG.focusRadius;
+    this.t = 0; // 自動ゆらぎ用
+  }
+  setRadius(r) { this.r = r; }
+  autoWander(w, h) {
+    this.t += 0.01;
+    this.x += Math.cos(this.t * 0.9) * 0.3;
+    this.y += Math.sin(this.t * 1.1) * 0.3;
+    this.x = Math.max(this.r, Math.min(w - this.r, this.x));
+    this.y = Math.max(this.r, Math.min(h - this.r, this.y));
+  }
+}
+
+class World {
+  constructor(canvas) {
+    this.cv = canvas;
+    this.cx = canvas.getContext('2d');
+    this.w = canvas.width;
+    this.h = canvas.height;
+    this.agent = new FocusAgent(this.w, this.h);
+    this.targets = [];
+    this._mouse = { x: this.w / 2, y: this.h / 2, inside: false };
+    this._ts = 0;
+    this.running = false;
+    this._raf = 0;
+
+    this._bindEvents();
+    this.reset(CFG.targetCount, CFG.baseSpeed);
+  }
+
+  _bindEvents() {
+    this.cv.addEventListener('mousemove', e => {
+      const rect = this.cv.getBoundingClientRect();
+      this._mouse.x = e.clientX - rect.left;
+      this._mouse.y = e.clientY - rect.top;
+      this._mouse.inside = true;
+    });
+    this.cv.addEventListener('mouseleave', () => { this._mouse.inside = false; });
+  }
+
+  reset(n, spd) {
+    this.targets.length = 0;
+    for (let i = 0; i < n; i++) this.targets.push(new Target(i, this.w, this.h, spd));
+    this._ts = 0;
+  }
+
+  setCount(n) {
+    const cur = this.targets.length;
+    if (n > cur) {
+      for (let i = cur; i < n; i++) this.targets.push(new Target(i, this.w, this.h, CFG.baseSpeed));
+    } else if (n < cur) {
+      this.targets.length = n;
+    }
+  }
+
+  setSpeed(spd) { CFG.baseSpeed = spd; }
+  setRadius(r) { this.agent.setRadius(r); }
+  setFollowMouse(on) { CFG.followMouse = on; }
+
+  start(loop) {
+    if (this.running) return; this.running = true;
+    const tick = () => { this._raf = requestAnimationFrame(tick); loop(); }; tick();
+  }
+  pause() { this.running = false; cancelAnimationFrame(this._raf); }
+
+  step() {
+    this._ts++;
+    if (CFG.followMouse && this._mouse.inside) {
+      this.agent.x += (this._mouse.x - this.agent.x) * 0.15;
+      this.agent.y += (this._mouse.y - this.agent.y) * 0.15;
+    } else {
+      this.agent.autoWander(this.w, this.h);
+    }
+    for (const t of this.targets) t.step(this.w, this.h, CFG.baseSpeed);
+    const ax = this.agent.x, ay = this.agent.y, rr = this.agent.r * this.agent.r;
+    const now = performance.now();
+    for (const t of this.targets) {
+      const dx = t.x - ax, dy = t.y - ay;
+      const vis = (dx * dx + dy * dy) <= rr;
+      t.visible = vis;
+      if (vis) t.lastSeenTs = now;
+    }
+  }
+
+  draw() {
+    const ctx = this.cx, { w, h } = this;
+    ctx.clearRect(0, 0, w, h);
+    ctx.strokeStyle = '#13203f'; ctx.lineWidth = 1; ctx.setLineDash([2, 10]);
+    for (let x = 40; x < w; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
+    for (let y = 40; y < h; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
+    ctx.setLineDash([]);
+
+    ctx.strokeStyle = 'rgba(59,130,246,.85)'; // focus
+    ctx.fillStyle = 'rgba(59,130,246,.08)';
+    ctx.lineWidth = 2.0;
+    ctx.beginPath(); ctx.arc(this.agent.x, this.agent.y, this.agent.r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+
+    for (const t of this.targets) {
+      ctx.beginPath(); ctx.arc(t.x, t.y, t.r, 0, Math.PI * 2);
+      ctx.fillStyle = t.visible ? 'rgba(34,197,94,0.95)' : 'rgba(154,163,178,0.75)';
+      ctx.fill();
+    }
+    ctx.beginPath(); ctx.arc(this.agent.x, this.agent.y, 5, 0, Math.PI * 2);
+    ctx.fillStyle = '#e7eaf6'; ctx.fill(); ctx.strokeStyle = '#151a2c'; ctx.stroke();
+  }
+}
+
+// グローバル公開
+window.CFG = CFG;
+window.RNG = RNG;
+window.Target = Target;
+window.FocusAgent = FocusAgent;
+window.World = World;
+</script>
+  <script>
+// =====================
+// focus-logic.js (no-module)
+// 判定と統計・ログ（VISIBLE / IGNORED）
+// =====================
+
+class FocusLogic {
+  constructor(world) {
+    this.world = world;
+    this.events = 0;
+    this.visible = 0;
+    this.hidden = 0;
+    this.logs = []; // JSONL
+  }
+
+  snapshot() {
+    const vis = this.world.targets.filter(t => t.visible).map(t => ({
+      id: t.id,
+      x: +t.x.toFixed(1), y: +t.y.toFixed(1),
+      dist: +Math.hypot(t.x - this.world.agent.x, t.y - this.world.agent.y).toFixed(1),
+      why: "VISIBLE (inside focus radius)"
+    }));
+    const hid = this.world.targets.length - vis.length;
+    this.events++;
+    this.visible = vis.length;
+    this.hidden = hid;
+
+    this.logs.push({
+      ts: new Date().toISOString(),
+      kind: "TICK",
+      focus: { x: +this.world.agent.x.toFixed(1), y: +this.world.agent.y.toFixed(1), r: window.CFG.focusRadius },
+      visible_ids: vis.slice(0, 24).map(v => v.id),
+      counts: { visible: this.visible, hidden: this.hidden }
+    });
+
+    return vis;
+  }
+
+  download() {
+    const jsonl = this.logs.map(o => JSON.stringify(o)).join('\n');
+    const blob = new Blob([jsonl], { type: "application/json" });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `decision_focus_log_${Date.now()}.jsonl`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+}
+
+function createWorld(canvas) {
+  return new window.World(canvas);
+}
+
+// グローバル公開
+window.FocusLogic = FocusLogic;
+window.createWorld = createWorld;
+</script>
+  <script>
+// =====================
+// focus-ui.js (no-module)
+// 描画ループ／UI制御
+// =====================
+
+const cv = document.getElementById('stage');
+const world = window.createWorld(cv);
+const logic = new window.FocusLogic(world);
+
+// UI参照
+const lblStatus = document.getElementById('lblStatus');
+const lblRadius = document.getElementById('lblRadius');
+const lblCount = document.getElementById('lblCount');
+const lblSpeed = document.getElementById('lblSpeed');
+const rngRadius = document.getElementById('rngRadius');
+const rngCount = document.getElementById('rngCount');
+const rngSpeed = document.getElementById('rngSpeed');
+const chkFollow = document.getElementById('chkFollowMouse');
+const btnStart = document.getElementById('btnStart');
+const btnPause = document.getElementById('btnPause');
+const btnReset = document.getElementById('btnReset');
+const btnDownload = document.getElementById('btnDownload');
+const focusList = document.getElementById('focusList');
+const statVisible = document.getElementById('statVisible');
+const statHidden = document.getElementById('statHidden');
+const statEvents = document.getElementById('statEvents');
+
+function applyControls() {
+  CFG.focusRadius = +rngRadius.value; lblRadius.textContent = CFG.focusRadius;
+  CFG.targetCount = +rngCount.value; lblCount.textContent = CFG.targetCount;
+  CFG.baseSpeed = +rngSpeed.value; lblSpeed.textContent = CFG.baseSpeed.toFixed(1);
+  world.setRadius(CFG.focusRadius);
+  world.setSpeed(CFG.baseSpeed);
+  world.setFollowMouse(chkFollow.checked);
+  world.setCount(CFG.targetCount);
+}
+
+rngRadius.addEventListener('input', applyControls);
+rngCount.addEventListener('input', applyControls);
+rngSpeed.addEventListener('input', applyControls);
+chkFollow.addEventListener('change', applyControls);
+
+btnStart.addEventListener('click', () => {
+  if (world.running) return;
+  lblStatus.textContent = 'running';
+  world.start(step);
+});
+
+btnPause.addEventListener('click', () => {
+  world.pause();
+  lblStatus.textContent = 'paused';
+});
+
+btnReset.addEventListener('click', () => {
+  world.pause();
+  world.reset(CFG.targetCount, CFG.baseSpeed);
+  logic.events = logic.visible = logic.hidden = 0;
+  logic.logs.length = 0;
+  lblStatus.textContent = 'stopped';
+  focusList.innerHTML = '';
+  updateStats();
+  world.draw();
+});
+
+btnDownload.addEventListener('click', () => logic.download());
+
+function step() {
+  world.step();
+  world.draw();
+  const vis = logic.snapshot();
+  renderFocusList(vis);
+  updateStats();
+}
+
+function renderFocusList(list) {
+  focusList.innerHTML = '';
+  list.sort((a, b) => a.dist - b.dist);
+  for (const v of list.slice(0, 32)) {
+    const div = document.createElement('div');
+    div.className = 'item';
+    div.innerHTML = `
+      <span class="k">#${v.id} <span class="badge vis">VISIBLE</span></span>
+      <span class="v">dist: ${v.dist.toFixed(1)}</span>
+    `;
+    focusList.appendChild(div);
+  }
+}
+
+function updateStats() {
+  statVisible.textContent = logic.visible;
+  statHidden.textContent = logic.hidden;
+  statEvents.textContent = logic.events;
+}
+
+// 初期描画＆コントロール反映
+applyControls();
+world.draw();
+</script>
+</body>
+</html>

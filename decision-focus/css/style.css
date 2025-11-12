@@ -1,0 +1,161 @@
+:root {
+  --bg: #0f1220;
+  --panel: #151a2c;
+  --fg: #e7eaf6;
+  --muted: #9aa3b2;
+  --accent: #6ee7b7;
+  --focus: #3b82f6;
+  --visible: #22c55e;
+  --hidden: #9aa3b2;
+}
+
+* {
+  box-sizing: border-box
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", Arial
+}
+
+header {
+  padding: 14px 16px;
+  border-bottom: 1px solid #1f2440;
+  background: #0d1120
+}
+
+header h1 {
+  margin: 0;
+  font-size: 18px;
+  letter-spacing: .02em
+}
+
+.wrap {
+  display: flex;
+  gap: 16px;
+  padding: 16px
+}
+
+.stage {
+  display: flex;
+  flex-direction: column;
+  gap: 12px
+}
+
+canvas {
+  background: #0b1328;
+  border: 1px solid #1f2440;
+  border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .35)
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center
+}
+
+.btn {
+  padding: 6px 12px;
+  border: 1px solid #2b3358;
+  border-radius: 8px;
+  background: #1f2440;
+  color: #cdd3ea;
+  cursor: pointer
+}
+
+.btn:hover {
+  background: #242c52
+}
+
+.ctl {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--muted)
+}
+
+.ctl input[type=range] {
+  accent-color: #93c5fd
+}
+
+.panel {
+  width: 420px;
+  background: var(--panel);
+  border-radius: 12px;
+  border: 1px solid #1f2440;
+  padding: 12px
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between
+}
+
+.title {
+  font-weight: 700
+}
+
+.sub {
+  color: var(--muted);
+  font-size: 12px
+}
+
+#focusList {
+  margin-top: 6px;
+  border-top: 1px solid #232a4a;
+  padding-top: 8px;
+  max-height: 300px;
+  overflow: auto
+}
+
+.item {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px dashed #232a4a;
+  padding: 6px 0
+}
+
+.item .k {
+  color: var(--muted);
+  font-size: 12px
+}
+
+.item .v {
+  font-variant-numeric: tabular-nums
+}
+
+.stats {
+  margin-top: 4px;
+  color: #dbe2ff
+}
+
+.note {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  border: 1px solid #2b3358;
+  background: #0f1427
+}
+
+.badge.vis {
+  color: var(--visible);
+  border-color: var(--visible)
+}
+
+.badge.hid {
+  color: var(--hidden);
+  border-color: #3a425e
+}

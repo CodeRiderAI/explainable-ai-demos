@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Decision Focus — 視野と焦点化のデモ</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <header>
+    <h1>Decision Focus — 視野と焦点化（Frame Problem 可視化デモ）</h1>
+  </header>
+
+  <main class="wrap">
+    <section class="stage">
+      <canvas id="stage" width="720" height="480"></canvas>
+
+      <div class="toolbar">
+        <button id="btnStart" class="btn">Start</button>
+        <button id="btnPause" class="btn">Pause</button>
+        <button id="btnReset" class="btn">Reset</button>
+
+        <label class="ctl">
+          視野半径
+          <input id="rngRadius" type="range" min="40" max="200" step="2" value="110" />
+          <span id="lblRadius">110</span>
+        </label>
+
+        <label class="ctl">
+          ターゲット数
+          <input id="rngCount" type="range" min="8" max="120" step="1" value="32" />
+          <span id="lblCount">32</span>
+        </label>
+
+        <label class="ctl">
+          速度係数
+          <input id="rngSpeed" type="range" min="0.5" max="3.0" step="0.1" value="1.0" />
+          <span id="lblSpeed">1.0</span>
+        </label>
+
+        <label class="ctl">
+          <input id="chkFollowMouse" type="checkbox" />
+          視点をマウス追従
+        </label>
+
+        <button id="btnDownload" class="btn">ログを保存</button>
+      </div>
+    </section>
+
+    <aside class="panel">
+      <div class="row">
+        <div class="title">現在の注目（FOCUSED）</div>
+        <div class="sub" id="lblStatus">stopped</div>
+      </div>
+
+      <div id="focusList"></div>
+
+      <div class="row" style="margin-top:8px">
+        <div class="title">統計</div>
+      </div>
+      <div id="stats" class="stats">
+        <div>可視ターゲット: <strong id="statVisible">0</strong></div>
+        <div>不可視ターゲット: <strong id="statHidden">0</strong></div>
+        <div>累積観測イベント: <strong id="statEvents">0</strong></div>
+      </div>
+
+      <div class="note">
+        <p>このデモは「全部を見ず、必要な範囲だけ見る」焦点化の概念を可視化します。円の内側が“注目”領域、外側は“無視”。条件が変われば、外側にあったものが内側に入り“注目”へ移ります。</p>
+      </div>
+    </aside>
+  </main>
+
+  <script src="js/focus-engine.js"></script>
+  <script src="js/focus-logic.js"></script>
+  <script src="js/focus-ui.js"></script>
+</body>
+</html>

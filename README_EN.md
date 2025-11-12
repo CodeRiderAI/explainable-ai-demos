@@ -1,103 +1,79 @@
-# Explainable AI Demos — Visualization of the Frame Problem Solved
+# Explainable AI Demos
 [日本語版はこちら 🇯🇵](./README.md)
 
-**Purpose**
-This demo lets you experience an AI that can explain
-*why* it discarded, *why* it held, and *why* it adopted a move.
-It runs entirely offline without any trained models, visualizing the AI’s reasoning process transparently.
+*The beginning of the era where AI creates AI*
+
+## ― Visible Thinking, Understandable Intelligence ―
+
+This repository provides a set of small, self-contained demos
+that embody the **philosophy behind AdaCore (ADAM)**.
+Each demo runs completely **standalone** (`standalone.html`),
+with no dependency on machine learning models or external servers.
 
 ---
 
-## How to Run
-- Open `index.html` in your browser (works offline).
-- Or use `standalone.html` for a single-file version.
+## 📦 Included Demos (more coming soon)
+- **Decision Focus** — Experience interactive *focus and attention* within a limited visual field.
+  `./decision-focus/standalone.html` ／ [README](./decision-focus/README_EN.md)
+- **Reversi (WHY Demo)** — Feel the intuition of *DROP / HOLD / REVIVE* in a game context.
+  `./reversi/standalone.html` ／ [README](./reversi/README_EN.md)
+
+> New demos will be added under their own directories: `./<name>/`
 
 ---
 
-## Directory
+## 🚀 Quick Start
+1. Simply open any `standalone.html` file in your browser.
+2. If direct opening doesn’t work, run a local server:
+
+```bash
+cd decision-focus
+python3 -m http.server 8080
+# → http://localhost:8080/
 ```
-explainable-ai-demos/
-├── LICENSE
-├── README.md
-├── README_EN.md
-└── reversi/
-    ├── index.html
-    ├── style.css
-    ├── js/
-    │   ├── reversi-engine.js
-    │   ├── ai-logic.js
-    │   └── ui-renderer.js
-    └── standalone.html
-```
 
 ---
 
-## Features
-- No learning, no server connection — completely local
-- Classifies candidate moves into **DROP / HOLD / REVIVE** and explains them in natural language
-- Saves WHY logs in `.jsonl` format
-- Generates a **WHY × Win/Loss correlation report** after each match
-- Balanced search (depth 3–4 / 250 ms) — lightweight yet reasonably strong
-- Ideal for education, lectures, and research demonstrations
+## 🧭 What This Repository Offers
+
+- A **minimal hands-on experience** to understand the implementation-level idea
+  behind solving the *Frame Problem*.
+- An **intuitive grasp** of concepts like *DROP / HOLD / REVIVE / (light) ADAPT / LINEAGE*.
+- **Neutral, educational, and research-friendly visual materials** for exploration and discussion.
+- Additional demos or ideas may be added later (plans subject to change).
+
+> This repository serves as a **demonstration of ideas**,
+> not a full implementation of any production system.
 
 ---
 
-## Background
-This demo demonstrates a *practical avoidance* of the **Frame Problem** —
-the challenge of “seeing only what is relevant.”
-Reversi is used here as a simple environment to illustrate this idea.
+## 💡 Background (Conceptual Sketch)
 
-> - **DROP**: Irrelevant in the current context
-> - **HOLD**: Uncertain, kept for possible future relevance
-> - **REVIVE**: Re-evaluated and found important again
+- **Seeing selectively:** Focus only on the most relevant information to keep reasoning light and transparent.
+- **The importance of WHY:** Preserve *why* a decision was made to ensure reproducibility and shared understanding.
+- **Model-free architecture:** Highlight the **structure of reasoning itself**, independent of any trained model.
 
 ---
 
-## Design Notes
-### Evaluation Coefficients
-| Feature | Coefficient | Purpose |
-|----------|-------------|----------|
-| `myCorners` | **+2.2** | Corners are decisive in endgame; highest priority. |
-| `stEdges` | **+1.2** | Stable edges affect local fights; medium weight. |
-| `myMob` | **+0.4** | Mobility gives short-term flexibility; small bonus. |
-| `oppMob` | **-0.5** | Reducing opponent mobility is advantageous; slight penalty. |
-| `xRisk` | **-1.6** | X-squares (next to corners) are dangerous; strong penalty. |
+## 🔐 Security / Privacy
 
-> These weights are *rule-based design parameters*,
-> not learned values — they encode human strategic insight transparently.
-
-### Search Depth and Performance
-The demo runs in **Balanced mode** (depth 3–4, ≈250 ms per move).
-This is not a limitation of JavaScript, but an intentional design choice
-to illustrate the **efficiency of relevance focusing under limited resources** —
-the practical essence of the frame problem.
-
-> You can increase the depth, but the goal is not exhaustive search.
-> It is to experience *intelligent omission* — focusing only on the most relevant parts.
+- All demos run **entirely locally** and do **not** communicate with external servers.
+- Only **synthetic or abstract data** are used.
+- Browser compatibility: Latest Chrome / Edge / Safari / Firefox recommended.
+  (Mobile browsers are supported in simplified mode.)
 
 ---
 
-## Use Cases
-- Educational material for **Explainable AI (XAI)**
-- Conceptual understanding of the **Frame Problem**
-- Demonstrations in research or lectures
-- Example of “AI explaining AI”
+## References / Citations
 
----
+These demos are based on the following public research artifacts:
 
-## License
-MIT License — free to use and modify (please keep this notice).
-
----
-
-## Related Work / Citation
-
-This demo builds upon the following published works:
-
-- **Proof Pack v0.1.1** — Minimal reproducible core for the Frame Problem
+- **Proof Pack v0.1.1** — Minimal implementation solving the Frame Problem
   DOI: [10.5281/zenodo.17218954](https://doi.org/10.5281/zenodo.17218954)
-- **Final Pack v1.0.2** — Real-world PiCar demonstration and reproducibility notes
+- **Final Pack v1.0.2** — Real-world verification with PiCar
   DOI: [10.5281/zenodo.17218964](https://doi.org/10.5281/zenodo.17218964)
 
-> WHY Reversi Demo is an educational derivative designed to
-> visualize the *practical avoidance* of the Frame Problem.
+---
+
+## 🧾 License
+MIT License
